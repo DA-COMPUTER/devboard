@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevBoard — Cross-Platform System Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@300;600;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #060a0f;
+  --bg2:       #0c1219;
+  --bg3:       #111922;
+  --border:    rgba(0,229,160,0.15);
+  --green:     #00e5a0;
+  --green-dim: #00b07a;
+  --amber:     #ffb347;
+  --blue:      #4db8ff;
+  --red:       #ff5f5f;
+  --text:      #c8d8e8;
+  --text-dim:  #5a7a8a;
+  --mono:      'Space Mono', monospace;
+  --head:      'Barlow Condensed', sans-serif;
+  --body:      'Barlow', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-weight: 300;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* ── Scanline overlay ─────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── Noise grain ──────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.4;
+}
+
+/* ── Nav ──────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 3rem;
+  height: 56px;
+  background: rgba(6,10,15,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--green);
+  letter-spacing: 0.05em;
+  text-decoration: none;
+}
+.nav-logo span { color: var(--text-dim); }
+
+.nav-links {
+  display: flex; gap: 2rem; list-style: none;
+}
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--green); }
+
+/* ── Hero ─────────────────────────────────────────── */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-align: center;
+  padding: 8rem 2rem 4rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Radial glow behind hero */
+.hero::before {
+  content: '';
+  position: absolute;
+  width: 800px; height: 800px;
+  background: radial-gradient(circle, rgba(0,229,160,0.07) 0%, transparent 70%);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.hero-tag {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--green);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s ease forwards;
+}
+
+.hero h1 {
+  font-family: var(--head);
+  font-weight: 800;
+  font-size: clamp(3.5rem, 10vw, 7.5rem);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin-bottom: 0.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.1s ease forwards;
+}
+
+.hero h1 .accent { color: var(--green); }
+
+.hero-sub {
+  font-family: var(--head);
+  font-weight: 300;
+  font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 2.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.2s ease forwards;
+}
+
+.hero-desc {
+  max-width: 560px;
+  font-size: 1.05rem;
+  color: var(--text);
+  line-height: 1.7;
+  margin-bottom: 3rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.3s ease forwards;
+}
+
+/* ── Download Buttons ─────────────────────────────── */
+.dl-group {
+  display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 2rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.4s ease forwards;
+}
+
+.dl-btn {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.85rem 1.6rem;
+  border-radius: 4px;
+  text-decoration: none;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.dl-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.dl-btn:hover::before { opacity: 1; }
+.dl-btn:hover { transform: translateY(-2px); }
+
+.dl-btn-win {
+  background: rgba(0,120,212,0.15);
+  border: 1px solid rgba(0,120,212,0.5);
+  color: #4db8ff;
+}
+.dl-btn-win::before { background: rgba(0,120,212,0.1); }
+.dl-btn-win:hover { border-color: #4db8ff; box-shadow: 0 0 24px rgba(0,120,212,0.3); }
+
+.dl-btn-lin {
+  background: rgba(255,179,71,0.1);
+  border: 1px solid rgba(255,179,71,0.4);
+  color: var(--amber);
+}
+.dl-btn-lin::before { background: rgba(255,179,71,0.08); }
+.dl-btn-lin:hover { border-color: var(--amber); box-shadow: 0 0 24px rgba(255,179,71,0.25); }
+
+.dl-btn-mac {
+  background: rgba(0,229,160,0.1);
+  border: 1px solid rgba(0,229,160,0.35);
+  color: var(--green);
+}
+.dl-btn-mac::before { background: rgba(0,229,160,0.07); }
+.dl-btn-mac:hover { border-color: var(--green); box-shadow: 0 0 24px rgba(0,229,160,0.25); }
+
+.dl-btn-src {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-dim);
+}
+.dl-btn-src:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+
+.dl-btn-icon { font-size: 1.1rem; }
+
+.dl-meta {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  opacity: 0;
+  animation: fadeUp 0.6s 0.5s ease forwards;
+}
+.dl-meta a { color: var(--green); text-decoration: none; }
+.dl-meta a:hover { text-decoration: underline; }
+
+/* ── Terminal Mock ────────────────────────────────── */
+.terminal-wrap {
+  width: min(820px, 92vw);
+  margin: 5rem auto 0;
+  opacity: 0;
+  animation: fadeUp 0.8s 0.6s ease forwards;
+}
+
+.terminal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,229,160,0.05), 0 0 60px rgba(0,229,160,0.04);
+}
+
+.terminal-bar {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border);
+}
+
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.dot-r { background: #ff5f57; }
+.dot-y { background: #febc2e; }
+.dot-g { background: #28c840; }
+
+.terminal-title {
+  margin-left: auto; margin-right: auto;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.terminal-body {
+  padding: 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+
+.t-prompt { color: var(--green); }
+.t-cmd    { color: #fff; }
+.t-out    { color: var(--text-dim); }
+.t-val    { color: var(--amber); }
+.t-ok     { color: var(--green); }
+.t-err    { color: var(--red); }
+.t-sep    { color: #1e3040; user-select: none; }
+.t-cursor {
+  display: inline-block; width: 8px; height: 1em;
+  background: var(--green); vertical-align: text-bottom;
+  animation: blink 1.1s step-end infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── Section shared ───────────────────────────────── */
+section { padding: 7rem 2rem; }
+.section-inner { max-width: 1100px; margin: 0 auto; }
+
+.section-tag {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--green);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.section-title {
+  font-family: var(--head);
+  font-weight: 800;
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  line-height: 1.0;
+  color: #fff;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.25rem;
+}
+
+.section-lead {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  max-width: 580px;
+  line-height: 1.7;
+}
+
+/* ── Features Grid ────────────────────────────────── */
+#features { background: var(--bg); }
+.features-divider {
+  width: 100%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin-bottom: 5rem;
+}
+
+.features-header { margin-bottom: 4rem; }
+
+.feat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.feat-card {
+  background: var(--bg);
+  padding: 2rem;
+  position: relative;
+  transition: background 0.25s;
+}
+.feat-card:hover { background: var(--bg2); }
+
+.feat-icon {
+  font-size: 1.6rem;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.feat-name {
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #fff;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.feat-desc {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.feat-tag {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.2rem 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+}
+
+.tag-green { background: rgba(0,229,160,0.1); color: var(--green); border: 1px solid rgba(0,229,160,0.2); }
+.tag-amber { background: rgba(255,179,71,0.1); color: var(--amber); border: 1px solid rgba(255,179,71,0.2); }
+.tag-blue  { background: rgba(77,184,255,0.1); color: var(--blue);  border: 1px solid rgba(77,184,255,0.2); }
+.tag-red   { background: rgba(255,95,95,0.1);  color: var(--red);   border: 1px solid rgba(255,95,95,0.2); }
+
+/* ── Platform ─────────────────────────────────────── */
+#platforms { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: 3.5rem;
+}
+
+.platform-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.platform-card:hover {
+  border-color: var(--green-dim);
+  box-shadow: 0 0 40px rgba(0,229,160,0.07);
+}
+
+.platform-os { font-size: 2.8rem; margin-bottom: 1rem; display: block; }
+
+.platform-name {
+  font-family: var(--head);
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: #fff;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.platform-pkg {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--green);
+  margin-bottom: 1rem;
+}
+
+.platform-notes {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin-bottom: 1.75rem;
+}
+
+.platform-dl {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.65rem 1.4rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s;
+  border: 1px solid;
+}
+.platform-dl-win  { color: var(--blue);  border-color: rgba(77,184,255,0.35);  background: rgba(77,184,255,0.08); }
+.platform-dl-lin  { color: var(--amber); border-color: rgba(255,179,71,0.35);  background: rgba(255,179,71,0.07); }
+.platform-dl-mac  { color: var(--green); border-color: rgba(0,229,160,0.3);    background: rgba(0,229,160,0.07); }
+.platform-dl:hover { transform: translateY(-1px); filter: brightness(1.15); }
+
+/* ── Docs / Install ───────────────────────────────── */
+#install { background: var(--bg); }
+
+.install-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  margin-top: 3.5rem;
+}
+
+.install-col h3 {
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 1.15rem;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.step-list { list-style: none; counter-reset: steps; }
+.step-list li {
+  counter-increment: steps;
+  display: flex; gap: 1rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.step-list li::before {
+  content: counter(steps);
+  min-width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--green);
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.step-list li p {
+  font-size: 0.92rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.step-list li strong {
+  display: block;
+  font-weight: 500;
+  color: #fff;
+  margin-bottom: 0.15rem;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  background: rgba(0,229,160,0.08);
+  color: var(--green);
+  padding: 0.15em 0.45em;
+  border-radius: 3px;
+  border: 1px solid rgba(0,229,160,0.15);
+}
+
+.code-block {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem 1.5rem;
+  margin-top: 1rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.9;
+  overflow-x: auto;
+}
+.code-block .cb-prompt { color: var(--green-dim); }
+.code-block .cb-cmd    { color: #fff; }
+.code-block .cb-comment { color: var(--text-dim); }
+
+/* ── Config reference ─────────────────────────────── */
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+.config-table th {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.config-table td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(0,229,160,0.06);
+  vertical-align: top;
+}
+.config-table td:first-child { font-family: var(--mono); font-size: 0.78rem; color: var(--green); }
+.config-table td:last-child  { color: var(--text-dim); font-size: 0.82rem; }
+.config-table tr:last-child td { border-bottom: none; }
+
+/* ── Footer ───────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 3rem 2rem;
+  text-align: center;
+}
+.footer-inner { max-width: 1100px; margin: 0 auto; }
+.footer-logo {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--green);
+  margin-bottom: 0.5rem;
+}
+.footer-copy {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.footer-links {
+  display: flex; justify-content: center; gap: 2rem;
+  margin-top: 1.25rem; list-style: none;
+}
+.footer-links a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--green); }
+
+/* ── Animations ───────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 768px) {
+  nav { padding: 0 1.25rem; }
+  .nav-links { display: none; }
+  .platform-grid { grid-template-columns: 1fr; }
+  .install-grid  { grid-template-columns: 1fr; }
+  .dl-group { flex-direction: column; align-items: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Nav ──────────────────────────────────────────── -->
+<nav>
+  <a href="#" class="nav-logo"><strong>Dev</strong>Board</a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#platforms">Download</a></li>
+    <li><a href="#install">Install</a></li>
+    <li><a href="https://github.com/DA-COMPUTER/devboard" target="_blank">GitHub ↗</a></li>
+  </ul>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────── -->
+<section class="hero">
+  <p class="hero-tag">v10.0 &nbsp;·&nbsp; Cross-Platform &nbsp;·&nbsp; No Cloud Required</p>
+  <h1><span class="accent">Dev</span>Board</h1>
+  <p class="hero-sub">System Monitor &amp; Command Center</p>
+  <p class="hero-desc">
+    A self-hosted, browser-based dashboard for Linux, macOS, and Windows.
+    Live system stats, terminal access, file browser, Docker management,
+    and one-click setup — all from a single Python file.
+  </p>
+
+  <div class="dl-group">
+    <a href="https://github.com/DA-COMPUTER/devboard/releases/latest/download/devboard-windows.exe"
+       class="dl-btn dl-btn-win">
+      <span class="dl-btn-icon">🪟</span>
+      Windows .exe
+    </a>
+    <a href="https://github.com/DA-COMPUTER/devboard/releases/latest/download/devboard-linux.deb"
+       class="dl-btn dl-btn-lin">
+      <span class="dl-btn-icon">🐧</span>
+      Linux .deb
+    </a>
+    <a href="https://github.com/DA-COMPUTER/devboard/releases/latest/download/devboard-mac.dmg"
+       class="dl-btn dl-btn-mac">
+      <span class="dl-btn-icon">🍎</span>
+      macOS .dmg
+    </a>
+    <a href="https://github.com/DA-COMPUTER/devboard/archive/refs/heads/main.zip"
+       class="dl-btn dl-btn-src">
+      <span class="dl-btn-icon">{ }</span>
+      Source
+    </a>
+  </div>
+
+  <p class="dl-meta">
+    Requires Python 3.8+ (source only) &nbsp;·&nbsp;
+    <a href="https://github.com/DA-COMPUTER/devboard/releases">View all releases</a>
+  </p>
+
+  <!-- Terminal mockup -->
+  <div class="terminal-wrap">
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="terminal-title">devboard — setup.py</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-prompt">$ </span><span class="t-cmd">python3 setup.py</span></div>
+        <div class="t-sep">──────────────────────────────────────────────────────</div>
+        <div class="t-out">  DevBoard — Setup Wizard</div>
+        <div class="t-out">  Platform : <span class="t-val">Linux (x86_64)</span></div>
+        <div class="t-out">  Python   : <span class="t-val">3.12.2</span></div>
+        <div class="t-out">  Window   : <span class="t-val">pywebview</span></div>
+        <div class="t-sep">──────────────────────────────────────────────────────</div>
+        <br>
+        <div><span class="t-ok">  ✓</span><span class="t-out"> flask installed</span></div>
+        <div><span class="t-ok">  ✓</span><span class="t-out"> psutil installed</span></div>
+        <div><span class="t-ok">  ✓</span><span class="t-out"> pywebview installed</span></div>
+        <div><span class="t-ok">  ✓</span><span class="t-out"> config.json written</span></div>
+        <div><span class="t-ok">  ✓</span><span class="t-out"> systemd user service enabled and started</span></div>
+        <div><span class="t-ok">  ✓</span><span class="t-out"> desktop shortcut created</span></div>
+        <br>
+        <div><span class="t-out">  Dashboard running at </span><span class="t-val">http://localhost:5000</span></div>
+        <br>
+        <div><span class="t-prompt">$ </span><span class="t-cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ──────────────────────────────────────── -->
+<section id="features">
+  <div class="section-inner">
+    <div class="features-divider"></div>
+    <div class="features-header reveal">
+      <p class="section-tag">// capabilities</p>
+      <h2 class="section-title">Everything in one place</h2>
+      <p class="section-lead">Six command tabs, live metrics, and a wizard that handles the entire install — all running locally, nothing phoning home.</p>
+    </div>
+
+    <div class="feat-grid reveal">
+      <div class="feat-card">
+        <span class="feat-icon">⚡</span>
+        <div class="feat-name">Live System Stats</div>
+        <p class="feat-desc">CPU, RAM, temperature, and disk usage updated in real time via psutil. Sparkline graphs for historical context at a glance.</p>
+        <span class="feat-tag tag-green">STS TAB</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">🖥️</span>
+        <div class="feat-name">Terminal Runner</div>
+        <p class="feat-desc">Execute shell commands from the browser. Full command history, Ctrl+R history search, and per-OS quick-command libraries built in.</p>
+        <span class="feat-tag tag-amber">CMD TAB</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">🐳</span>
+        <div class="feat-name">Docker Manager</div>
+        <p class="feat-desc">List, start, stop, restart, and inspect containers without touching a terminal. Real-time container status with log tailing.</p>
+        <span class="feat-tag tag-blue">DKR TAB</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">📁</span>
+        <div class="feat-name">File Browser</div>
+        <p class="feat-desc">Browse, read, edit, and download files from your home directory. Respects <code>.dashignore</code> rules for privacy.</p>
+        <span class="feat-tag tag-green">FLS TAB</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">🔌</span>
+        <div class="feat-name">Ports &amp; Services</div>
+        <p class="feat-desc">See every open port and listening process. Watch custom systemd / launchd / Windows services and get alerted when they drop.</p>
+        <span class="feat-tag tag-amber">PRT TAB</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">📜</span>
+        <div class="feat-name">Script Runner</div>
+        <p class="feat-desc">Save and run named scripts from <code>scripts.scr</code>. Organize into groups, run with one click, view output inline.</p>
+        <span class="feat-tag tag-blue">SCR TAB</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">🔒</span>
+        <div class="feat-name">Secure Auth</div>
+        <p class="feat-desc">PAM authentication on Linux, scrypt-hashed passwords on macOS and Windows. Session timeout configurable from setup wizard.</p>
+        <span class="feat-tag tag-red">AUTH</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">🧙</span>
+        <div class="feat-name">Setup Wizard</div>
+        <p class="feat-desc">Browser-based installer handles pip deps, config, service registration (systemd/launchd/Task Scheduler), and desktop shortcuts.</p>
+        <span class="feat-tag tag-green">SETUP.PY</span>
+      </div>
+
+      <div class="feat-card">
+        <span class="feat-icon">🗑️</span>
+        <div class="feat-name">Clean Uninstall</div>
+        <p class="feat-desc">Reads <code>config.json</code> to surgically remove exactly what was installed — service, shortcuts, unit files — without touching anything else.</p>
+        <span class="feat-tag tag-amber">UNINSTALL.PY</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Platforms ──────────────────────────────────────── -->
+<section id="platforms">
+  <div class="section-inner">
+    <div class="reveal">
+      <p class="section-tag">// download</p>
+      <h2 class="section-title">Pick your platform</h2>
+      <p class="section-lead">Standalone builds require no Python install. Source distribution works anywhere Python 3.8+ is available.</p>
+    </div>
+
+    <div class="platform-grid reveal">
+      <div class="platform-card">
+        <span class="platform-os">🪟</span>
+        <div class="platform-name">Windows</div>
+        <div class="platform-pkg">.exe — standalone binary</div>
+        <p class="platform-notes">
+          Single-file executable bundled with PyInstaller.
+          Runs on Windows 10/11 (x64). Registers as a Scheduled Task
+          for autostart. No install wizard — just double-click.
+        </p>
+        <a href="https://github.com/DA-COMPUTER/devboard/releases/latest/download/devboard-windows.exe"
+           class="platform-dl platform-dl-win">
+          ↓ &nbsp;devboard-windows.exe
+        </a>
+      </div>
+
+      <div class="platform-card">
+        <span class="platform-os">🐧</span>
+        <div class="platform-name">Linux</div>
+        <div class="platform-pkg">.deb — Debian / Ubuntu package</div>
+        <p class="platform-notes">
+          Installs via <code>dpkg -i</code>. Drops a binary to
+          <code>/usr/local/bin</code> and a systemd user service.
+          Compatible with Debian 11+, Ubuntu 22.04+, Raspberry Pi OS.
+        </p>
+        <a href="https://github.com/DA-COMPUTER/devboard/releases/latest/download/devboard-linux.deb"
+           class="platform-dl platform-dl-lin">
+          ↓ &nbsp;devboard-linux.deb
+        </a>
+      </div>
+
+      <div class="platform-card">
+        <span class="platform-os">🍎</span>
+        <div class="platform-name">macOS</div>
+        <div class="platform-pkg">.dmg — drag-and-drop app</div>
+        <p class="platform-notes">
+          Standard disk image with a <code>.app</code> bundle inside.
+          Drag to Applications, right-click → Open on first launch
+          (Gatekeeper unsigned). Supports macOS 12 Monterey and later.
+        </p>
+        <a href="https://github.com/DA-COMPUTER/devboard/releases/latest/download/devboard-mac.dmg"
+           class="platform-dl platform-dl-mac">
+          ↓ &nbsp;devboard-mac.dmg
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Install & Docs ─────────────────────────────────── -->
+<section id="install">
+  <div class="section-inner">
+    <div class="reveal">
+      <p class="section-tag">// getting started</p>
+      <h2 class="section-title">Up in three steps</h2>
+      <p class="section-lead">Installers handle everything. For power users who prefer source, a full manual setup path is documented below.</p>
+    </div>
+
+    <div class="install-grid reveal">
+      <!-- Left: Quick Install -->
+      <div class="install-col">
+        <h3>⚡ Quick Install (executables)</h3>
+        <ul class="step-list">
+          <li>
+            <p>
+              <strong>Download your platform's build</strong>
+              Grab the <code>.exe</code>, <code>.deb</code>, or <code>.dmg</code>
+              from the Download section above or the GitHub Releases page.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Run the installer / binary</strong>
+              Windows: double-click the <code>.exe</code> — a setup wizard opens in your browser.<br>
+              Linux: <code>sudo dpkg -i devboard-linux.deb</code><br>
+              macOS: open the <code>.dmg</code>, drag the app to Applications.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Complete the wizard</strong>
+              Set your port, password, and whether to register as a system service.
+              The wizard handles everything automatically.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Open the dashboard</strong>
+              Navigate to <code>http://localhost:5000</code> (or your chosen port).
+              Bookmark it — that's your dashboard from now on.
+            </p>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Right: Source install -->
+      <div class="install-col">
+        <h3>🔧 Source Install (Python)</h3>
+        <ul class="step-list">
+          <li>
+            <p>
+              <strong>Clone the repository</strong>
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Run the setup wizard</strong>
+              Installs flask, psutil, pywebview and registers a system service.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Start the dashboard</strong>
+              After setup, the service auto-starts on boot. Or run manually any time.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>To uninstall</strong>
+              Reads <code>config.json</code> and removes exactly what was installed — service, shortcuts, and config.
+            </p>
+          </li>
+        </ul>
+
+        <div class="code-block">
+<span class="cb-comment"># clone</span>
+<span class="cb-prompt">$ </span><span class="cb-cmd">git clone https://github.com/DA-COMPUTER/devboard</span>
+<span class="cb-prompt">$ </span><span class="cb-cmd">cd devboard</span>
+
+<span class="cb-comment"># wizard (deps + service + shortcuts)</span>
+<span class="cb-prompt">$ </span><span class="cb-cmd">python3 setup.py</span>
+
+<span class="cb-comment"># manual start (optional)</span>
+<span class="cb-prompt">$ </span><span class="cb-cmd">python3 dashboard.py</span>
+
+<span class="cb-comment"># uninstall</span>
+<span class="cb-prompt">$ </span><span class="cb-cmd">python3 uninstall.py</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config reference -->
+    <div style="margin-top:4rem;" class="reveal">
+      <h3 style="font-family:var(--head);font-weight:600;font-size:1.15rem;color:#fff;
+                 text-transform:uppercase;letter-spacing:.06em;margin-bottom:1.25rem;
+                 padding-bottom:.75rem;border-bottom:1px solid var(--border);">
+        ⚙️ config.json reference
+      </h3>
+      <table class="config-table">
+        <thead>
+          <tr>
+            <th>Key</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>port</td><td>5000</td><td>HTTP port the dashboard listens on (1024–65535)</td></tr>
+          <tr><td>auth_mode</td><td>pam / password</td><td><code>pam</code> on Linux, <code>password</code> on macOS/Windows</td></tr>
+          <tr><td>session_timeout_minutes</td><td>7</td><td>Idle session expiry in minutes</td></tr>
+          <tr><td>alert_temp_warn / crit</td><td>60 / 75</td><td>CPU temperature thresholds (°C) for warning and critical alerts</td></tr>
+          <tr><td>alert_disk_warn / crit</td><td>80 / 90</td><td>Disk usage percentage thresholds</td></tr>
+          <tr><td>alert_cpu_warn</td><td>80</td><td>CPU usage percentage threshold for warning</td></tr>
+          <tr><td>watched_services</td><td>[]</td><td>List of service names to monitor in the PRT tab</td></tr>
+          <tr><td>fs_root</td><td>$HOME</td><td>Root directory exposed in the file browser</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">DevBoard</div>
+    <p class="footer-copy">Open source · MIT License · Built with Python &amp; Flask</p>
+    <ul class="footer-links">
+      <li><a href="https://github.com/DA-COMPUTER/devboard">GitHub</a></li>
+      <li><a href="https://github.com/DA-COMPUTER/devboard/releases">Releases</a></li>
+      <li><a href="https://github.com/DA-COMPUTER/devboard/issues">Issues</a></li>
+      <li><a href="https://github.com/DA-COMPUTER/devboard/blob/main/README.md">Docs</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Stagger feat cards
+document.querySelectorAll('.feat-card').forEach((card, i) => {
+  card.style.transitionDelay = `${i * 0.04}s`;
+});
+</script>
+</body>
+</html>
