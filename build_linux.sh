@@ -29,11 +29,18 @@ python3 --version
 echo "  Python path: $(which python3)"
 
 # ── 2. Install build dependencies ────────────────────────────
+# Detect PEP 668 externally-managed environments (Raspberry Pi OS, Ubuntu 24.04+)
+PIP_FLAGS="--quiet --upgrade"
+if python3 -c "import sys; open(sys.prefix+'/EXTERNALLY-MANAGED')" 2>/dev/null; then
+    PIP_FLAGS="$PIP_FLAGS --break-system-packages"
+    echo "  Note: externally-managed environment detected, using --break-system-packages"
+fi
+
 echo "  Installing PyInstaller…"
-pip3 install --quiet --upgrade pyinstaller
+pip3 install $PIP_FLAGS pyinstaller
 
 echo "  Installing app dependencies…"
-pip3 install --quiet --upgrade flask psutil pywebview || \
+pip3 install $PIP_FLAGS flask psutil pywebview || \
     echo "  WARNING: Some deps failed (may be ok if already present)"
 
 # ── 3. Clean ─────────────────────────────────────────────────
@@ -68,7 +75,7 @@ cat > "${DOC_DIR}/README" <<'DOC'
 DevBoard v10.0 — cross-platform system monitor.
 Run: devboard
 First run opens the setup wizard in your browser.
-Docs: https://DA-COMPUTER.github.io/devboard
+Docs: https://YOUR_USERNAME.github.io/devboard
 DOC
 
 # ── 6. DEBIAN/control ────────────────────────────────────────
@@ -83,7 +90,7 @@ Description: DevBoard — cross-platform system monitor
  A self-hosted, browser-based dashboard providing live system stats,
  a terminal runner, file browser, Docker management, and more.
  Supports Linux, macOS, and Windows.
-Homepage: https://DA-COMPUTER.github.io/devboard
+Homepage: https://YOUR_USERNAME.github.io/devboard
 CTRL
 
 # ── 7. DEBIAN/postinst ───────────────────────────────────────
