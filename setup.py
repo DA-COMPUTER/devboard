@@ -113,7 +113,11 @@ def _log(msg: str):
     _install_state['output'] += msg + '\n'
 
 def _do_install():
-    pkgs = ['flask', 'psutil', 'pywebview']
+    pkgs = ['flask', 'psutil']
+    # pywebview is not needed on Windows — we use browser mode there to avoid
+    # threading conflicts with the HTTP server and Task Scheduler registration
+    if PLATFORM != 'Windows':
+        pkgs.append('pywebview')
     if PLATFORM == 'Linux':
         pkgs.append('python-pam')
 
@@ -769,9 +773,11 @@ async function startInstall() {
   _poll = setInterval(pollInstall, 700);
 }
 
+let _pollErrors = 0;
 async function pollInstall() {
   try {
     const d = await (await fetch('/api/install-status')).json();
+    _pollErrors = 0; // reset on success
     const out = document.getElementById('install-out');
     out.textContent = d.output;
     out.scrollTop = out.scrollHeight;
@@ -782,7 +788,21 @@ async function pollInstall() {
       if (d.success) document.getElementById('install-ok').classList.add('show');
       else           showErr(document.getElementById('install-err'), 'Installation failed. See output above.');
     }
-  } catch(e) {}
+  } catch(e) {
+    _pollErrors++;
+    const out = document.getElementById('install-out');
+    out.textContent += (out.textContent ? '' : '') + '';
+    // After 10 consecutive failures (~7s) the server likely crashed — stop polling
+    // and show a message rather than spamming ERR_CONNECTION_REFUSED forever
+    if (_pollErrors >= 10) {
+      clearInterval(_poll);
+      document.getElementById('install-btns').style.display = 'none';
+      document.getElementById('after-btns').style.display = 'flex';
+      showErr(document.getElementById('install-err'),
+        'Lost connection to the setup server. pip may still be running in the background. ' +
+        'Wait 30 seconds, then close this window and run the .exe again to continue.');
+    }
+  }
 }
 
 // ── Step 4: Service ──────────────────────────────────
