@@ -26,7 +26,10 @@ except ImportError:
 #  GLOBALS
 # ======================================================═
 PLATFORM = platform.system()          # 'Linux' | 'Darwin' | 'Windows'
-BASE_DIR  = Path(__file__).parent.resolve()
+# When frozen by PyInstaller use the directory containing the .exe,
+# not the temp _MEI extraction folder that __file__ resolves to.
+BASE_DIR  = (Path(sys.executable).parent if getattr(sys, 'frozen', False)
+             else Path(__file__).parent).resolve()
 CONFIG_FILE = BASE_DIR / 'config.json'
 _server     = None
 _install_state: dict = {'running': False, 'output': '', 'success': None}
@@ -262,17 +265,32 @@ def _launchd(cfg: dict) -> dict:
 def _schtask(cfg: dict) -> dict:
     """Creates a Task Scheduler task that runs on login (no admin required)."""
     task = 'DevBoard'
-    vbs  = BASE_DIR / 'launch_dashboard.vbs'
-    # VBScript launches Python silently (no console window)
-    vbs.write_text(
-        f'CreateObject("WScript.Shell").Run '
-        f'Chr(34) & "{sys.executable}" & Chr(34) & " " & '
-        f'Chr(34) & "{BASE_DIR / chr(92)}dashboard.py" & Chr(34), 0, False\n'
-    )
+
+    # Determine what to run:
+    # - Frozen .exe: run the exe itself (config.json exists by this point so
+    #   _launcher.py will start the dashboard, not the wizard)
+    # - Source: run python.exe dashboard.py via VBScript
+    if getattr(sys, 'frozen', False):
+        exe_path = Path(sys.executable)
+        run_target = f'wscript.exe "{BASE_DIR / "launch_devboard.vbs"}"'
+        vbs = BASE_DIR / 'launch_devboard.vbs'
+        vbs.write_text(
+            f'CreateObject("WScript.Shell").Run '
+            f'Chr(34) & "{exe_path}" & Chr(34), 0, False\n'
+        )
+    else:
+        vbs = BASE_DIR / 'launch_devboard.vbs'
+        vbs.write_text(
+            f'CreateObject("WScript.Shell").Run '
+            f'Chr(34) & "{sys.executable}" & Chr(34) & " " & '
+            f'Chr(34) & "{BASE_DIR / "dashboard.py"}" & Chr(34), 0, False\n'
+        )
+        run_target = f'wscript.exe "{vbs}"'
+
     r = subprocess.run([
         'schtasks', '/create', '/f',
         '/tn', task,
-        '/tr', f'wscript.exe "{vbs}"',
+        '/tr', run_target,
         '/sc', 'ONLOGON', '/rl', 'LIMITED',
     ], capture_output=True, text=True)
     _save_installed(cfg, {'service': True, 'service_type': 'schtask',
@@ -341,23 +359,34 @@ def _mac_shortcuts(url: str, cfg: dict) -> list[str]:
     return created
 
 def _windows_shortcuts(url: str, cfg: dict) -> list[str]:
-    content = f'[InternetShortcut]\nURL={url}\n'
+    shortcut = f'[InternetShortcut]\nURL={url}\n'
     created = []
     inst = cfg.setdefault('installed', {})
 
-    desktop = Path.home() / 'Desktop'
-    if desktop.exists():
+    # Check standard Desktop and OneDrive Desktop (common on Windows 11)
+    desktop = None
+    for candidate in [
+        Path.home() / 'Desktop',
+        Path.home() / 'OneDrive' / 'Desktop',
+        Path(os.environ.get('USERPROFILE', '')) / 'Desktop',
+        Path(os.environ.get('USERPROFILE', '')) / 'OneDrive' / 'Desktop',
+    ]:
+        if candidate.exists():
+            desktop = candidate
+            break
+
+    if desktop:
         p = desktop / 'DevBoard.url'
-        p.write_text(content)
+        p.write_text(shortcut)
         inst['shortcut_desktop'] = str(p)
-        created.append(f'Desktop → {p}')
+        created.append(f'Desktop -> {p}')
 
     start = Path(os.environ.get('APPDATA', '')) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs'
     if start.exists():
         p = start / 'DevBoard.url'
-        p.write_text(content)
+        p.write_text(shortcut)
         inst['shortcut_startmenu'] = str(p)
-        created.append(f'Start Menu → {p}')
+        created.append(f'Start Menu -> {p}')
 
     CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
     return created
@@ -640,15 +669,18 @@ h1{font-size:26px;font-weight:800;color:var(--txt2);margin-bottom:8px}
   <!-- ─── Step 6: Done ─── -->
   <div class="step" id="s6">
     <h1>You&rsquo;re all set &#127881;</h1>
-    <p class="sub">DevBoard is installed and ready. Click the URL below to open it, or run <code>python3 dashboard.py</code> manually.</p>
-    <div class="url-box" id="done-url" onclick="openDash()">http://localhost:5000</div>
+    <p class="sub" id="done-msg">DevBoard is installed. <strong>Close this wizard, then run DevBoard again</strong> to start the dashboard.</p>
+    <div class="url-box" id="done-url" onclick="openDash()" style="cursor:pointer">http://localhost:5000</div>
+    <p style="font-size:0.82rem;color:#888;margin-top:8px;text-align:center">
+      The dashboard starts when you run DevBoard.exe again. Then click the URL above.
+    </p>
     <div class="cmds-box">
       <div class="cmds-lbl">Useful commands</div>
       <div id="done-cmds"></div>
     </div>
     <div class="btns" style="margin-top:28px">
-      <button class="btn primary" onclick="openDash()">Open Dashboard &rarr;</button>
-      <button class="btn secondary" onclick="finish()">Close wizard</button>
+      <button class="btn primary" onclick="finish()">Close Wizard</button>
+      <button class="btn secondary" onclick="openDash()">Open Dashboard (if running)</button>
     </div>
   </div>
 
