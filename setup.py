@@ -263,46 +263,44 @@ def _launchd(cfg: dict) -> dict:
     return {'ok': False, 'error': (r.stderr or r.stdout).strip()}
 
 def _schtask(cfg: dict) -> dict:
-    """Creates a Task Scheduler task that runs on login (no admin required)."""
-    task = 'DevBoard'
+    """Registers DevBoard to run at login via HKCU Registry Run key.
+    Requires zero admin privileges — HKCU is always writable by the
+    current user. No UAC prompt, no Task Scheduler policy issues.
+    """
+    import winreg
 
-    # Determine what to run:
-    # - Frozen .exe: run the exe itself (config.json exists by this point so
-    #   _launcher.py will start the dashboard, not the wizard)
-    # - Source: run python.exe dashboard.py via VBScript
+    # Build the VBScript launcher — runs the exe silently (no console window)
+    vbs = BASE_DIR / 'launch_devboard.vbs'
     if getattr(sys, 'frozen', False):
-        exe_path = Path(sys.executable)
-        run_target = f'wscript.exe "{BASE_DIR / "launch_devboard.vbs"}"'
-        vbs = BASE_DIR / 'launch_devboard.vbs'
+        exe_path = str(Path(sys.executable))
         vbs.write_text(
             f'CreateObject("WScript.Shell").Run '
             f'Chr(34) & "{exe_path}" & Chr(34), 0, False\n'
         )
     else:
-        vbs = BASE_DIR / 'launch_devboard.vbs'
         vbs.write_text(
             f'CreateObject("WScript.Shell").Run '
             f'Chr(34) & "{sys.executable}" & Chr(34) & " " & '
             f'Chr(34) & "{BASE_DIR / "dashboard.py"}" & Chr(34), 0, False\n'
         )
-        run_target = f'wscript.exe "{vbs}"'
 
-    r = subprocess.run([
-        'schtasks', '/create', '/f',
-        '/tn', task,
-        '/tr', run_target,
-        '/sc', 'ONLOGON', '/rl', 'LIMITED',
-    ], capture_output=True, text=True)
-    _save_installed(cfg, {'service': True, 'service_type': 'schtask',
-                           'service_name': task, 'vbs': str(vbs)})
-    if r.returncode == 0:
-        return {'ok': True, 'detail': f'Task Scheduler task "{task}" created (runs on login)'}
-    return {'ok': False, 'error': (r.stderr or r.stdout).strip()}
+    run_value = f'wscript.exe "{vbs}"'
+
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r'Software\Microsoft\Windows\CurrentVersion\Run',
+            0, winreg.KEY_SET_VALUE
+        )
+        winreg.SetValueEx(key, 'DevBoard', 0, winreg.REG_SZ, run_value)
+        winreg.CloseKey(key)
+        _save_installed(cfg, {'service': True, 'service_type': 'schtask',
+                               'service_name': 'DevBoard', 'vbs': str(vbs)})
+        return {'ok': True, 'detail': 'Added to Windows startup (Registry Run key)'}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
 
 
-# ======================================================═
-#  SHORTCUTS
-# ======================================================═
 def create_shortcut() -> dict:
     try:
         cfg  = json.loads(CONFIG_FILE.read_text())
