@@ -1980,7 +1980,7 @@ if __name__ == '__main__':
         print(f"  .dashignore: {len(_ignore_patterns)} rule(s) loaded")
 
     if not _CFG_FILE.exists():
-        print('\n  ⚠  No config.json found.')
+        print('\n  ! No config.json found.')
         print('  Run setup.py first:  python3 setup.py\n')
 
     try:    local_ip = socket.gethostbyname(socket.gethostname())
@@ -2036,7 +2036,7 @@ if __name__ == '__main__':
             except OSError:
                 time.sleep(0.1)
 
-        print(f'  Opening dashboard window (port {PORT})…\n'
+        print(f'  Opening dashboard window (port {PORT})...\n'
               f'  Network URL: http://{local_ip}:{PORT}\n'
               f'  Ctrl+C or close the window to stop.\n')
 
@@ -2055,4 +2055,3 @@ if __name__ == '__main__':
         # ── Headless / browser mode ─────────────────────────────────────
         print(f'  Ctrl+C to stop.\n')
         app.run(host='0.0.0.0', port=PORT, debug=False)
-
