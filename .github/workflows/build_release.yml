@@ -1,0 +1,211 @@
+name: Build & Release
+
+# Triggers ONLY when you push a tag starting with "v" (e.g. v10.0, v10.1)
+# Normal pushes to main do NOT trigger this.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+
+  # ── Windows ──────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows .exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller flask psutil pywebview
+
+      - name: Build with PyInstaller
+        run: python -m PyInstaller devboard.spec --noconfirm
+
+      - name: Rename output
+        run: Rename-Item dist\devboard.exe devboard-windows.exe
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devboard-windows
+          path: dist/devboard-windows.exe
+
+  # ── Linux ────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux .deb
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller flask psutil pywebview
+
+      - name: Install dpkg tools
+        run: sudo apt-get install -y dpkg-dev fakeroot
+
+      - name: Build with PyInstaller
+        run: python -m PyInstaller devboard.spec --noconfirm
+
+      - name: Package as .deb
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG=devboard
+          DEB_ROOT=dist/deb_pkg
+
+          mkdir -p ${DEB_ROOT}/usr/local/bin
+          mkdir -p ${DEB_ROOT}/usr/share/doc/${PKG}
+          mkdir -p ${DEB_ROOT}/DEBIAN
+
+          cp dist/devboard ${DEB_ROOT}/usr/local/bin/devboard
+          chmod 755 ${DEB_ROOT}/usr/local/bin/devboard
+
+          cat > ${DEB_ROOT}/usr/share/doc/${PKG}/README <<DOC
+          DevBoard v${VERSION} -- cross-platform system monitor.
+          Run: devboard
+          Docs: https://da-computer.github.io/devboard
+          DOC
+
+          cat > ${DEB_ROOT}/DEBIAN/control <<CTRL
+          Package: ${PKG}
+          Version: ${VERSION}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: da-computer <da-computer@users.noreply.github.com>
+          Description: DevBoard -- cross-platform system monitor
+           A self-hosted, browser-based dashboard providing live system stats,
+           a terminal runner, file browser, Docker management, and more.
+          Homepage: https://da-computer.github.io/devboard
+          CTRL
+
+          cat > ${DEB_ROOT}/DEBIAN/postinst <<'POSTINST'
+          #!/bin/sh
+          echo ""
+          echo "  DevBoard installed. Run: devboard"
+          echo ""
+          POSTINST
+          chmod 755 ${DEB_ROOT}/DEBIAN/postinst
+
+          cat > ${DEB_ROOT}/DEBIAN/prerm <<'PRERM'
+          #!/bin/sh
+          systemctl --user stop   devboard 2>/dev/null || true
+          systemctl --user disable devboard 2>/dev/null || true
+          PRERM
+          chmod 755 ${DEB_ROOT}/DEBIAN/prerm
+
+          fakeroot dpkg-deb --build ${DEB_ROOT} dist/devboard-linux.deb
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devboard-linux
+          path: dist/devboard-linux.deb
+
+  # ── macOS ────────────────────────────────────────────────────
+  build-mac:
+    name: Build macOS .dmg
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller flask psutil pywebview
+
+      - name: Build with PyInstaller
+        run: python -m PyInstaller devboard.spec --noconfirm
+
+      - name: Package as .dmg
+        run: |
+          APP="dist/DevBoard.app"
+          DMG_STAGE="dist/dmg_stage"
+          DMG_OUT="dist/devboard-mac.dmg"
+
+          mkdir -p "${DMG_STAGE}"
+          cp -R "${APP}" "${DMG_STAGE}/"
+          ln -s /Applications "${DMG_STAGE}/Applications"
+
+          hdiutil create \
+            -volname "DevBoard" \
+            -srcfolder "${DMG_STAGE}" \
+            -ov \
+            -format UDZO \
+            "${DMG_OUT}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devboard-mac
+          path: dist/devboard-mac.dmg
+
+  # ── Publish Release ──────────────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-mac]
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List built files
+        run: ls -lh dist/
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "DevBoard ${{ github.ref_name }}"
+          body: |
+            ## DevBoard ${{ github.ref_name }}
+
+            ### Downloads
+            | Platform | File |
+            |----------|------|
+            | Windows  | `devboard-windows.exe` |
+            | Linux    | `devboard-linux.deb` |
+            | macOS    | `devboard-mac.dmg` |
+
+            ### Install
+            - **Windows:** Run the `.exe` — setup wizard opens automatically
+            - **Linux:** `sudo dpkg -i devboard-linux.deb` then run `devboard`
+            - **macOS:** Open the `.dmg`, drag to Applications, right-click → Open on first launch
+          files: |
+            dist/devboard-windows.exe
+            dist/devboard-linux.deb
+            dist/devboard-mac.dmg
+          draft: false
+          prerelease: false
