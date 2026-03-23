@@ -958,6 +958,8 @@ def _do_close():
 # ======================================================═
 def main():
     global _server
+    import sys, os, json, subprocess, platform, hashlib, secrets, socket
+    import threading, time, webbrowser
 
     print()
     print('-' * 54)
@@ -976,8 +978,12 @@ def main():
     srv_thread = threading.Thread(target=_server.serve_forever, daemon=True)
     srv_thread.start()
 
-    if _HAS_WEBVIEW and '--browser' not in sys.argv:
-        # ── Native window mode ──────────────────────────────
+    # When frozen on Windows always use browser — pywebview conflicts with
+    # the background HTTP server thread and blocks startup.
+    _frozen_windows = getattr(sys, 'frozen', False) and PLATFORM == 'Windows'
+
+    if _HAS_WEBVIEW and '--browser' not in sys.argv and not _frozen_windows:
+        # -- Native window mode --
         print(f'\n  Opening setup window...')
         print('  Close the window or complete the wizard to exit.\n')
         win = _webview.create_window(
@@ -996,7 +1002,7 @@ def main():
             except Exception: pass
 
     else:
-        # ── Browser fallback ────────────────────────────────
+        # -- Browser fallback --
         if '--no-browser' not in sys.argv:
             threading.Timer(0.7, lambda: webbrowser.open(url)).start()
             print(f'\n  Wizard -> {url}  (opening in browser...)')
