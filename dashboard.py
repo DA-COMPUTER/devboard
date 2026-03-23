@@ -1975,6 +1975,7 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 #  MAIN
 # ═══════════════════════════════════════════════════════
 def main():
+    import sys, socket, time  # ensure available when loaded dynamically
     load_dashignore()
     if _ignore_patterns:
         print(f"  .dashignore: {len(_ignore_patterns)} rule(s) loaded")
@@ -1987,9 +1988,9 @@ def main():
     except: local_ip = 'your-ip'
     pad = ' ' * max(0, 14 - len(local_ip))
 
-    os_tag     = {'Linux': '🐧 Linux', 'Darwin': '🍎 macOS', 'Windows': '🪟 Windows'}.get(PLATFORM, PLATFORM)
-    psutil_tag = '✓ psutil'   if _HAS_PSUTIL  else '✗ missing — run setup.py'
-    win_tag    = '✓ pywebview' if _HAS_WEBVIEW else '✗ missing — run setup.py'
+    os_tag     = {'Linux': 'Linux', 'Darwin': 'macOS', 'Windows': 'Windows'}.get(PLATFORM, PLATFORM)
+    psutil_tag = '+ psutil'   if _HAS_PSUTIL  else 'x missing -- run setup.py'
+    win_tag    = '+ pywebview' if _HAS_WEBVIEW else 'x missing -- run setup.py'
 
     print(f"""
 +-------------------------------------------+
