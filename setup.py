@@ -75,7 +75,7 @@ def hash_password(password: str) -> str:
 # ======================================================═
 def write_config(data: dict) -> dict:
     try:
-        cfg = json.loads(CONFIG_FILE.read_text()) if CONFIG_FILE.exists() else {}
+        cfg = json.loads(CONFIG_FILE.read_text(encoding='utf-8')) if CONFIG_FILE.exists() else {}
         port    = max(1024, min(65535, int(data.get('port', 5000))))
         timeout = max(1, min(120,   int(data.get('timeout', 7))))
         auth    = 'pam' if PLATFORM == 'Linux' else 'password'
@@ -181,7 +181,7 @@ def _do_install():
 # ======================================================═
 def register_service() -> dict:
     try:
-        cfg = json.loads(CONFIG_FILE.read_text())
+        cfg = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
         if   PLATFORM == 'Linux':   return _systemd_user(cfg)
         elif PLATFORM == 'Darwin':  return _launchd(cfg)
         elif PLATFORM == 'Windows': return _schtask(cfg)
@@ -303,7 +303,7 @@ def _schtask(cfg: dict) -> dict:
 
 def create_shortcut() -> dict:
     try:
-        cfg  = json.loads(CONFIG_FILE.read_text())
+        cfg  = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
         port = cfg.get('port', 5000)
         url  = f'http://localhost:{port}'
 
