@@ -51,7 +51,7 @@ _CFG_FILE = Path(__file__).parent / 'config.json'
 
 def _load_cfg() -> dict:
     try:
-        return json.loads(_CFG_FILE.read_text()) if _CFG_FILE.exists() else {}
+        return json.loads(_CFG_FILE.read_text(encoding='utf-8')) if _CFG_FILE.exists() else {}
     except Exception:
         return {}
 
@@ -347,7 +347,7 @@ def get_temp() -> str:
         except Exception:
             pass
     try:
-        raw = Path('/sys/class/thermal/thermal_zone0/temp').read_text()
+        raw = Path('/sys/class/thermal/thermal_zone0/temp').read_text(encoding='utf-8')
         return f"{int(raw)/1000:.1f}°C"
     except Exception:
         pass
@@ -403,7 +403,7 @@ def is_hidden(name: str, rel_path: str) -> bool:
 def load_scripts() -> list:
     if not SCRIPTS_FILE.exists() and SCRIPTS_FILE_OLD.exists():
         try:
-            old = json.loads(SCRIPTS_FILE_OLD.read_text())
+            old = json.loads(SCRIPTS_FILE_OLD.read_text(encoding='utf-8'))
             save_scripts(old)
             SCRIPTS_FILE_OLD.unlink()
         except Exception:
@@ -1974,7 +1974,7 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 # ═══════════════════════════════════════════════════════
 #  MAIN
 # ═══════════════════════════════════════════════════════
-if __name__ == '__main__':
+def main():
     load_dashignore()
     if _ignore_patterns:
         print(f"  .dashignore: {len(_ignore_patterns)} rule(s) loaded")
@@ -1992,21 +1992,21 @@ if __name__ == '__main__':
     win_tag    = '✓ pywebview' if _HAS_WEBVIEW else '✗ missing — run setup.py'
 
     print(f"""
-╔═══════════════════════════════════════════╗
-║      DevBoard  v10.0          ║
-╠═══════════════════════════════════════════╣
-║  Local:    http://localhost:{PORT}            ║
-║  Network:  http://{local_ip}{pad}:{PORT}   ║
-╠═══════════════════════════════════════════╣
-║  Platform: {os_tag:<33}║
-║  Auth:     {AUTH_MODE:<33}║
-║  psutil:   {psutil_tag:<33}║
-║  window:   {win_tag:<33}║
-╠═══════════════════════════════════════════╣
-║  Tabs: CMD · DKR · FLS · STS · SCR · PRT ║
-║  Setup:  python3 setup.py                 ║
-║  Remove: python3 uninstall.py             ║
-╚═══════════════════════════════════════════╝
++-------------------------------------------+
+|      DevBoard  v10.0                      |
++-------------------------------------------+
+|  Local:    http://localhost:{PORT}            |
+|  Network:  http://{local_ip}{pad}:{PORT}   |
++-------------------------------------------+
+|  Platform: {os_tag:<33}|
+|  Auth:     {AUTH_MODE:<33}|
+|  psutil:   {psutil_tag:<33}|
+|  window:   {win_tag:<33}|
++-------------------------------------------+
+|  Tabs: CMD  DKR  FLS  STS  SCR  PRT      |
+|  Setup:  python3 setup.py                 |
+|  Remove: python3 uninstall.py             |
++-------------------------------------------+
 """)
 
     if _HAS_WEBVIEW and '--browser' not in sys.argv:
@@ -2055,3 +2055,7 @@ if __name__ == '__main__':
         # ── Headless / browser mode ─────────────────────────────────────
         print(f'  Ctrl+C to stop.\n')
         app.run(host='0.0.0.0', port=PORT, debug=False)
+
+
+if __name__ == '__main__':
+    main()
